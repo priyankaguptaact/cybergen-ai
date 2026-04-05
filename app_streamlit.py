@@ -1,9 +1,6 @@
-# app_streamlit.py
-
 import streamlit as st
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 import torch
-import re
 
 # ── Page Config ──
 st.set_page_config(
@@ -11,6 +8,12 @@ st.set_page_config(
     page_icon="🔐",
     layout="wide"
 )
+
+# ── Session State ──
+if "cve_input" not in st.session_state:
+    st.session_state.cve_input = ""
+if "custom_input" not in st.session_state:
+    st.session_state.custom_input = ""
 
 # ── Load Model ──
 @st.cache_resource
@@ -51,7 +54,7 @@ def generate(prompt, max_new_tokens=200, temperature=0.7):
     generated = tokenizer.decode(output[0], skip_special_tokens=True)
 
     # Clean hallucinations
-    for marker in ["WARNING:", "------------", "Traceback", "CPU:", "PID:"]:
+    for marker in ["WARNING:", "------------", "Traceback", "CPU:", "PID:", "~~~~~", "====", "____"]:
         if marker in generated:
             generated = generated[:generated.index(marker)].strip()
 
@@ -76,64 +79,74 @@ tab1, tab2 = st.tabs(["🔍 CVE Lookup", "✍️ Custom Prompt"])
 # ── CVE Tab ──
 with tab1:
     st.subheader("CVE Description Generator")
-
     col_in, col_out = st.columns(2)
 
     with col_in:
+        # Quick Example Buttons
+        st.write("**Quick Examples:**")
+        ex1, ex2, ex3, ex4 = st.columns(4)
+        if ex1.button("CVE-2024-53113", key="ex1"):
+            st.session_state.cve_input = "CVE-2024-53113"
+        if ex2.button("CVE-2023-44487", key="ex2"):
+            st.session_state.cve_input = "CVE-2023-44487"
+        if ex3.button("CVE-2024-38221", key="ex3"):
+            st.session_state.cve_input = "CVE-2024-38221"
+        if ex4.button("CVE-2022-30190", key="ex4"):
+            st.session_state.cve_input = "CVE-2022-30190"
+
+        # Input
         cve_id = st.text_input(
             "Enter CVE ID",
-            placeholder="e.g. CVE-2024-1234"
+            value=st.session_state.cve_input,
+            placeholder="e.g. CVE-2024-1234",
+            key="cve_field"
         )
 
-        st.write("Quick Examples:")
-        ex_cols = st.columns(4)
-        examples = ["CVE-2024-53113", "CVE-2023-44487", "CVE-2024-38221", "CVE-2022-30190"]
-        for i, ex in enumerate(examples):
-            if ex_cols[i].button(ex, key=f"cve_ex_{i}"):
-                cve_id = ex
-
-        generate_cve = st.button("Generate Description", type="primary", key="cve_btn")
+        generate_cve = st.button("Generate Description", type="primary", key="cve_btn", use_container_width=True)
 
     with col_out:
-        st.write("**Generated Output**")
-        if generate_cve and cve_id:
-            if not cve_id.upper().startswith("CVE-"):
-                cve_id = f"CVE-{cve_id}"
-            with st.spinner("Analyzing vulnerability..."):
-                prompt = f"Vulnerability: {cve_id.upper()} Description:"
-                result = generate(prompt)
-            st.success("Generated successfully!")
-            st.text_area("Result", result, height=200, key="cve_result")
-        elif generate_cve and not cve_id:
-            st.error("Please enter a CVE ID")
+        st.write("**Generated Output:**")
+        if generate_cve:
+            if not cve_id:
+                st.error("Please enter a CVE ID")
+            else:
+                if not cve_id.upper().startswith("CVE-"):
+                    cve_id = f"CVE-{cve_id}"
+                with st.spinner("Analyzing vulnerability..."):
+                    prompt = f"Vulnerability: {cve_id.upper()} Description:"
+                    result = generate(prompt)
+                st.success("Generated successfully!")
+                st.text_area("Result", result, height=250, key="cve_result")
         else:
             st.info("Enter a CVE ID and click Generate")
 
 # ── Custom Tab ──
 with tab2:
     st.subheader("Custom Prompt Generator")
-
     col_in2, col_out2 = st.columns(2)
 
     with col_in2:
+        # Quick Prompt Buttons
+        st.write("**Quick Prompts:**")
+        qp1, qp2 = st.columns(2)
+        if qp1.button("Buffer Overflow", key="qp1", use_container_width=True):
+            st.session_state.custom_input = "A buffer overflow vulnerability in"
+        if qp2.button("XSS Attack", key="qp2", use_container_width=True):
+            st.session_state.custom_input = "Cross-site scripting vulnerability in"
+        qp3, qp4 = st.columns(2)
+        if qp3.button("RCE", key="qp3", use_container_width=True):
+            st.session_state.custom_input = "Remote code execution vulnerability in"
+        if qp4.button("SQL Injection", key="qp4", use_container_width=True):
+            st.session_state.custom_input = "SQL injection vulnerability in"
+
+        # Input
         prompt_input = st.text_area(
             "Enter Prompt",
+            value=st.session_state.custom_input,
             placeholder="e.g. A SQL injection vulnerability in...",
-            height=120
+            height=120,
+            key="custom_field"
         )
-
-        st.write("Quick Prompts:")
-        qp_cols = st.columns(2)
-        quick_prompts = [
-            "A buffer overflow vulnerability in",
-            "Cross-site scripting vulnerability in",
-            "Remote code execution vulnerability in",
-            "SQL injection vulnerability in"
-        ]
-        for i, qp in enumerate(quick_prompts):
-            col = qp_cols[i % 2]
-            if col.button(qp[:28] + "...", key=f"qp_{i}"):
-                prompt_input = qp
 
         temperature = st.slider(
             "Temperature (Creativity)",
@@ -151,17 +164,18 @@ with tab2:
             step=50
         )
 
-        generate_custom = st.button("Generate Text", type="primary", key="custom_btn")
+        generate_custom = st.button("Generate Text", type="primary", key="custom_btn", use_container_width=True)
 
     with col_out2:
-        st.write("**Generated Output**")
-        if generate_custom and prompt_input:
-            with st.spinner("Generating text..."):
-                result = generate(prompt_input, max_new_tokens=max_tokens, temperature=temperature)
-            st.success("Generated successfully!")
-            st.text_area("Result", result, height=200, key="custom_result")
-        elif generate_custom and not prompt_input:
-            st.error("Please enter a prompt")
+        st.write("**Generated Output:**")
+        if generate_custom:
+            if not prompt_input:
+                st.error("Please enter a prompt")
+            else:
+                with st.spinner("Generating text..."):
+                    result = generate(prompt_input, max_new_tokens=max_tokens, temperature=temperature)
+                st.success("Generated successfully!")
+                st.text_area("Result", result, height=250, key="custom_result")
         else:
             st.info("Enter a prompt and click Generate")
 
