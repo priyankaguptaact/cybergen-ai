@@ -143,4 +143,4 @@ with tab2:
             st.info("Enter a prompt and click Generate")
 
 st.divider()
-st.caption("Research Project 2025 — Domain Specific Text Generation Using Fine-Tuned Transformer Models")
+st.caption("Research Project under Centre for Development of Advanced Computing (CDAC), Pune")
